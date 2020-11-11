@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 	"github.com/cespare/xxhash"
 	"github.com/icepic/toy6502"
+	"os"
 )
 
 func cksumScreen(c *toy6502.CPU) {
@@ -21,6 +21,9 @@ func c64findsys(addr int64, size int64, c *toy6502.CPU) uint16 {
 		} else {
 			for j = 0; j < 5; j++ {
 				var value = toy6502.GetMemory(c)[i+j+1]
+				if value == 0x20 {
+					continue
+				}
 				if value > 0x2f && value < 0x3a {
 					sys = sys * 10
 					sys = sys + int64(value-0x30)
@@ -28,7 +31,7 @@ func c64findsys(addr int64, size int64, c *toy6502.CPU) uint16 {
 					break
 				}
 			}
-			fmt.Printf("Calculated value: 0x%04x\n", sys)
+			//	fmt.Printf("Calculated value: 0x%04x\n", sys)
 			if sys <= 65535 {
 				return uint16(sys) // the happy case
 			} else {
@@ -64,7 +67,7 @@ func c64load(fname string, c *toy6502.CPU) uint16 {
 
 	var newsize = fi.Size() - 2
 	var addr int64 = int64(addrtemp[0]) + int64(addrtemp[1])*256
-	fmt.Printf("C64 Load Addr: 0x%04x, end: 0x%04x\n", addr, addr+newsize)
+	//	fmt.Printf("C64 Load Addr: 0x%04x, end: 0x%04x\n", addr, addr+newsize)
 
 	if (fi.Size() + addr - 2) > int64(len(toy6502.GetMemory(c))) {
 		fmt.Printf(
@@ -118,30 +121,39 @@ func Loadfileat(fname string, c *toy6502.CPU, addr int64) bool {
 
 func main() {
 
+	var quiet bool
 	c := toy6502.New()
 
 	myFilename := flag.String("filename", "a.out", "c64.prg to load and run.")
+	flag.BoolVar(&quiet, "q", false, "Quiet mode, only print the checksum.")
 	flag.Parse()
 
-	//	Loadfileat("test/6502_functional_test.bin", c, 0)
-	//	Loadfileat("goloop.bin", c, 0x1000)
+	//	SetupRoutes()
 
-	//	c.pc = c64load("goloop.prg", c)
 	toy6502.SetPC(c, c64load(*myFilename, c))
 
 	prevPC := uint16(0x00)
 
-	fmt.Println(" ** Starting emulation **")
+	if quiet == false {
+		fmt.Println(" ** Starting emulation **")
+	}
 	var instructions uint64
-	for {	toy6502.ExecuteInstruction(c) ; instructions++
+	for {
+		toy6502.ExecuteInstruction(c)
+		instructions++
 		if toy6502.GetPC(c) == prevPC {
 			if toy6502.GetMemory(c)[toy6502.GetPC(c)] == 0x02 {
-				fmt.Printf("Exit on JAM instruction at PC 0x%04X.\n", toy6502.GetPC(c))
+				if quiet == false {
+					fmt.Printf("Exit on JAM instruction at PC 0x%04X.\n",
+						toy6502.GetPC(c))
+				}
 			}
-			fmt.Printf("instructions run: %v cycles: %v\n",
-				instructions,
-				toy6502.GetCycles(c))
-			fmt.Printf("Reading screen memory, ")
+			if quiet == false {
+				fmt.Printf("instructions run: %v cycles: %v\n",
+					instructions,
+					toy6502.GetCycles(c))
+				fmt.Printf("Reading screen memory, ")
+			}
 			cksumScreen(c)
 			return
 		}
