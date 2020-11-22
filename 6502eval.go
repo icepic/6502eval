@@ -8,6 +8,10 @@ import (
 	"os"
 )
 
+func c64format(pet byte) rune {
+	return Petmap(pet)
+}
+
 func cksumScreen(c *toy6502.CPU) {
 	xxsum := xxhash.Sum64(toy6502.GetMemory(c)[0x0400:0x07f7])
 	fmt.Printf("checksum:  %x\n", xxsum)
@@ -43,26 +47,26 @@ func c64findsys(addr int64, size int64, c *toy6502.CPU) uint16 {
 	return 0
 }
 
-func c64load(fname string, c *toy6502.CPU) uint16 {
+func c64load(fname string, c *toy6502.CPU) (uint16, bool) {
 	f, err := os.Open(fname)
 	if err != nil {
 		fmt.Println(err)
-		return 0
+		return 0, false
 	}
 	fi, err := f.Stat()
 	if err != nil {
 		fmt.Println(err)
-		return 0
+		return 0, false
 	}
 	if fi.Size() < 3 {
 		fmt.Println("Invalid small size")
-		return 0
+		return 0, false
 	}
 	var addrtemp = make([]byte, 2)
 	_, err = f.Read(addrtemp)
 	if err != nil {
 		fmt.Println(err)
-		return 0
+		return 0, false
 	}
 
 	var newsize = fi.Size() - 2
@@ -73,17 +77,17 @@ func c64load(fname string, c *toy6502.CPU) uint16 {
 		fmt.Printf(
 			"Illegal size %04x, read would be beyond end of memory.\n",
 			newsize)
-		return 0
+		return 0, false
 	}
 
 	var temp = make([]byte, newsize)
 	_, err = f.Read(temp)
 	if err != nil {
 		fmt.Println(err)
-		return 0
+		return 0, false
 	}
 	copy(toy6502.GetMemory(c)[addr:addr+newsize], temp[:])
-	return c64findsys(addr, newsize, c)
+	return c64findsys(addr, newsize, c), true
 }
 
 func loadKernalBasic(c *toy6502.CPU) {
@@ -127,26 +131,34 @@ func Loadfileat(fname string, c *toy6502.CPU, addr int64) bool {
 
 func main() {
 
-	var shouldexit bool
+	var shouldexit bool = false
 	var quiet bool
 	var kerbas bool
+	var printscreen bool
 	var maxinst uint64
 
-	shouldexit = false
 	c := toy6502.New()
 
 	myFilename := flag.String("filename", "a.out", "c64.prg to load and run.")
 	flag.BoolVar(&quiet, "q", false, "Quiet mode, only print the checksum.")
 	flag.BoolVar(&kerbas, "k", false, "Load files 'basic' and 'kernal' into $a000 and $e000")
-	flag.Uint64Var(&maxinst, "maxinst", 1000000000, "Maximum number of instructions to execute before aborting")
+	flag.BoolVar(&printscreen, "ps", false, "Print simple screen rendering after exit")
+	flag.Uint64Var(&maxinst, "max", 1000000000,
+		"Maximum number of instructions to execute before aborting.")
 
 	flag.Parse()
 
 	if kerbas == true {
 		loadKernalBasic(c)
 	}
+	startaddr, ok :=c64load(*myFilename, c)
+	if ok == false {
+		fmt.Println("Failed to load files, exiting")
+		flag.PrintDefaults()
+		return
+	}
 
-	toy6502.SetPC(c, c64load(*myFilename, c))
+	toy6502.SetPC(c, startaddr)
 
 	prevPC := uint16(0x00)
 
@@ -183,5 +195,19 @@ func main() {
 		fmt.Printf("Reading screen memory, ")
 	}
 	cksumScreen(c)
-	return
+	if printscreen == true {
+		var mem []byte
+		var petscii byte
+		mem = toy6502.GetMemory(c)
+		fmt.Println("+----------------------------------------+")
+		for y := 0; y < 25; y++ {
+			fmt.Printf("|")
+			for x:=0; x < 40; x++ {
+				petscii = mem[0x0400+x+(y*40)]
+				fmt.Printf("%s", string(c64format(petscii)))
+			}
+			fmt.Printf("|\n")
+		}
+		fmt.Println("+----------------------------------------+")
+	}
 }
