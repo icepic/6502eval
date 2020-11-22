@@ -86,6 +86,11 @@ func c64load(fname string, c *toy6502.CPU) uint16 {
 	return c64findsys(addr, newsize, c)
 }
 
+func loadKernalBasic(c *toy6502.CPU) {
+	Loadfileat("basic", c, 0xa000)
+	Loadfileat("kernal", c, 0xe000)
+}
+
 func Loadfileat(fname string, c *toy6502.CPU, addr int64) bool {
 
 	f, err := os.Open(fname)
@@ -116,17 +121,30 @@ func Loadfileat(fname string, c *toy6502.CPU, addr int64) bool {
 		return false
 	}
 	copy(toy6502.GetMemory(c)[addr:addr+fi.Size()], temp[:])
+	fmt.Printf("Loaded %v at %x\n", fname, addr)
 	return true
 }
 
 func main() {
 
+	var shouldexit bool
 	var quiet bool
+	var kerbas bool
+	var maxinst uint64
+
+	shouldexit = false
 	c := toy6502.New()
 
 	myFilename := flag.String("filename", "a.out", "c64.prg to load and run.")
 	flag.BoolVar(&quiet, "q", false, "Quiet mode, only print the checksum.")
+	flag.BoolVar(&kerbas, "k", false, "Load files 'basic' and 'kernal' into $a000 and $e000")
+	flag.Uint64Var(&maxinst, "maxinst", 1000000000, "Maximum number of instructions to execute before aborting")
+
 	flag.Parse()
+
+	if kerbas == true {
+		loadKernalBasic(c)
+	}
 
 	toy6502.SetPC(c, c64load(*myFilename, c))
 
@@ -136,26 +154,34 @@ func main() {
 		fmt.Println(" ** Starting emulation **")
 	}
 	var instructions uint64
-	for {
+	for shouldexit == false {
+
 		toy6502.ExecuteInstruction(c)
 		instructions++
-		if toy6502.GetPC(c) == prevPC {
-			if toy6502.GetMemory(c)[toy6502.GetPC(c)] == 0x02 {
-				if quiet == false {
-					fmt.Printf("Exit on JAM instruction at PC 0x%04X.\n",
-						toy6502.GetPC(c))
-				}
-			}
-			if quiet == false {
-				fmt.Printf("instructions run: %v cycles: %v\n",
-					instructions,
-					toy6502.GetCycles(c))
-				fmt.Printf("Reading screen memory, ")
-			}
-			cksumScreen(c)
-			return
-		}
 
+		if instructions > maxinst {
+			shouldexit = true
+			fmt.Println(" Max # of insts reached")
+		}
+		if toy6502.GetPC(c) == prevPC {
+			shouldexit = true
+			fmt.Printf("CPU stuck on 0x%04X\n", toy6502.GetPC(c))
+		}
+		if toy6502.GetMemory(c)[toy6502.GetPC(c)] == 0x02 {
+			shouldexit = true
+			if quiet == false {
+				fmt.Printf("Exit on JAM instruction at PC 0x%04X.\n",
+					toy6502.GetPC(c))
+			}
+		}
 		prevPC = toy6502.GetPC(c)
+
 	}
+	if quiet == false {
+		fmt.Printf("instructions run: %v cycles: %v\n",
+			instructions, toy6502.GetCycles(c))
+		fmt.Printf("Reading screen memory, ")
+	}
+	cksumScreen(c)
+	return
 }
