@@ -128,8 +128,6 @@ func main() {
 	flag.BoolVar(&quiet, "q", false, "Quiet mode, only print the checksum.")
 	flag.Parse()
 
-	//	SetupRoutes()
-
 	toy6502.SetPC(c, c64load(*myFilename, c))
 
 	prevPC := uint16(0x00)
