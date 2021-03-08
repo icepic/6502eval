@@ -6,7 +6,14 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/icepic/toy6502"
 	"os"
+	_ "embed"
 )
+
+//go:embed zp.bin
+var zpbuf []byte
+
+//go:embed buff.bin
+var buf []byte
 
 func c64format(pet byte) rune {
 	return Petmap(pet)
@@ -207,7 +214,7 @@ func main() {
 		}
 		if toy6502.GetPC(c) == prevPC || toy6502.GetPC(c) == 0x0000 {
 			shouldexit = true
-			mnem,_ := c.Disassemble(toy6502.GetPC(c))
+			mnem, _ := c.Disassemble(toy6502.GetPC(c))
 			fmt.Printf("CPU stuck on 0x%04X Inst: %s\n",
 				toy6502.GetPC(c), mnem)
 		}
