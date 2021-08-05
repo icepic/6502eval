@@ -1,12 +1,13 @@
 package main
 
 import (
+	_ "embed"
 	"flag"
 	"fmt"
 	"github.com/cespare/xxhash"
 	"github.com/icepic/toy6502"
 	"os"
-	_ "embed"
+	"path/filepath"
 )
 
 //go:embed zp.bin
@@ -55,7 +56,7 @@ func c64findsys(addr int64, size int64, c *toy6502.CPU) uint16 {
 }
 
 func c64load(fname string, c *toy6502.CPU) (uint16, bool) {
-	f, err := os.Open(fname)
+	f, err := os.Open(filepath.Clean(fname))
 	if err != nil {
 		fmt.Println(err)
 		return 0, false
@@ -113,7 +114,7 @@ func loadKernalBasic(c *toy6502.CPU, kb bool, zp bool, scr bool) {
 
 func Loadfileat(fname string, c *toy6502.CPU, addr int64) bool {
 
-	f, err := os.Open(fname)
+	f, err := os.Open(filepath.Clean(fname))
 	if err != nil {
 		fmt.Println(err)
 		return false
